@@ -12,7 +12,7 @@ git clone https://github.com/lipeaaraujo/PascalMEPA-Compiler.git
 Compile it:
 
 ```bash
-gcc lexico.c -o lexico.exe
+gcc lexer.c -o lexer.exe
 ```
 Pass a Pascal file as argument and run the compiler executable:
 ```bash
