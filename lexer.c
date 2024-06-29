@@ -23,6 +23,11 @@ typedef struct Token {
   int line, column;
 } Token;
 
+typedef struct Node {
+  Token *tok;
+  struct Node *next;
+} Node;
+
 const char *keywords[] = {
   "and", "array", "begin", "div", "do",
   "else", "end", "function", "goto", "if", "label", "not", "of", "or",
@@ -33,6 +38,7 @@ int sizeKeywords = sizeof(keywords) / sizeof(keywords[0]);
 const char *operators[] = {
   "*", "+", "-", "/", "<", "=", ">"
 };
+
 int sizeOperators = sizeof(operators) / sizeof(operators[0]);
 
 const char *compoundOperators[] = {
@@ -65,36 +71,26 @@ Token *createToken(TokenType type, char *lexeme, int line, int column) {
   return newToken;
 }
 
+void pushList(Node *head, Token *tok) {
+  if (head->next == NULL) {
+    Node *new = (Node *)calloc(1, sizeof(Node));
+    new->tok = tok;
+    head->next = new;
+    return;
+  }
+  pushList(head->next, tok);
+}
+
 // Prints the list of tokens, only for debug purposes.
-void printTokenList(Token **tokenList, int count) {
-  for (int i=0; i<count; i++) {
-    printf("(\"%s\", %d), ", tokenList[i]->lexeme, tokenList[i]->type);
+void printTokenList(Node *tokenList) {
+  for (Node *aux=tokenList->next; aux != NULL; aux = aux->next) {
+    printf("(\"%s\", %d), ", aux->tok->lexeme, aux->tok->type);
   }
   printf("\n");
 }
 
 int compare(const void *a, const void *b) {
   return strcmp(*(const char **)a, *(const char **)b);
-}
-
-int notspace(int c) {
-  return !isspace(c);
-}
-
-// Gets the next lexeme in the source file and stores it in the buffer based on the condition set.
-void readLexeme(FILE *sourceFile, char buffer[][BUFFER_SIZE], char c,
-                int *column, int (*condition)(int)) {
-  int i = strlen(*buffer);
-  do {
-    (*buffer)[i++] = c;
-    c = fgetc(sourceFile);
-    (*column)++;
-  } while (condition(c));
-
-  ungetc(c, sourceFile);
-  (*column)--;
-
-  (*buffer)[i] = '\0';
 }
 
 int matchRegex(const char *pattern, const char *text) {
@@ -116,39 +112,6 @@ int contains(char *str, const char **arr, int arrSize) {
   return 0;
 }
 
-TokenType getTokenType(char *lexeme) {
-  // verify if token is a keyword
-  int sizeKeywords = sizeof(keywords) / sizeof(keywords[0]);
-  if (contains(lexeme, keywords, sizeKeywords)) return KEYWORD;
-
-  // verify if token is a identifier
-  if (matchRegex("^[a-zA-Z_][a-zA-Z0-9_]*$", lexeme)) return IDENTIFIER;
-
-  // verify if token is a number
-  if (matchRegex("^-[0-9]*[1-9][0-9]*$|^[0-9]*$", lexeme)) return NUMBER;
-
-  // verify if token is a operator
-  int sizeOperators = sizeof(operators) / sizeof(operators[0]);
-  char **posOperators = bsearch(&lexeme, operators, sizeOperators, sizeof(char *), compare);
-  if (posOperators != NULL) return OPERATOR;
-
-  // verify if token is a compound operator
-  int sizeCompoundOper = sizeof(compoundOperators) / sizeof(compoundOperators[0]);
-  char **posCompoundOper = bsearch(&lexeme, compoundOperators, sizeCompoundOper, sizeof(char *), compare);
-  if (posCompoundOper != NULL) return COMPOUND_OPERATOR;
-
-  // verify if token is a delimiter
-  int sizeDelimiters = sizeof(delimiters) / sizeof(delimiters[0]);
-  char **posDelimiter = bsearch(&lexeme, delimiters, sizeDelimiters, sizeof(char *), compare);
-  if (posDelimiter != NULL) return DELIMITER;
-
-  // verify if token is a comment
-  if (matchRegex("\\(\\*.*?\\*\\)", lexeme)) return COMMENTS;
-
-  // if it's none, return as UNKNOWN
-  return UNKNOWN;
-}
-
 // Peeks into the next character of the file, without reading it.
 char fpeek(FILE *source) {
   char c =  fgetc(source);
@@ -156,10 +119,69 @@ char fpeek(FILE *source) {
   return c;
 }
 
-Token **lexer(FILE *sourceFile) {
+// Processes a whitespace character read by the lexer.
+TokenType processWhitespace(char c, int *line, int *column) {
+  if (c == '\n') {
+    (*line)++;
+    *column = 1;
+  } else {
+    (*column)++;
+  }
+}
+
+// Processes a alphanumeric character and reads the rest of the lexeme.
+TokenType processAlnum(FILE *src, char *buffer, char c, int *column) {
+  // read the lexeme.
+  int i=0;
+  do {
+    buffer[i++] = c;
+    c = fgetc(src);
+    (*column)++;
+  } while (isalnum(c));
+  ungetc(c, src);
+  (*column)--;
+  buffer[i] = '\0';
+
+  // return the token type
+  if (contains(buffer, keywords, sizeKeywords)) return KEYWORD;
+  if (matchRegex("^[a-zA-Z_][a-zA-Z0-9_]*$", buffer)) return IDENTIFIER;
+  if (matchRegex("^-[0-9]*[1-9][0-9]*$|^[0-9]*$", buffer)) return NUMBER;
+  return UNKNOWN;
+}
+
+// Processes punction characters.
+TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
+  // check if it's a comment, compound, normal operator or a delimiter
+  if (c == '(' && fpeek(src) == '*') {
+    // read the lexeme
+    int i=0;
+    do {
+      buffer[i++] = c;
+      c = fgetc(src);
+      (*column)++;
+    } while (ispunct(c));
+    ungetc(c, src);
+    (*column)--;
+    buffer[i] = '\0';
+
+    if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
+    else return UNKNOWN;
+  }
+
+  buffer[0] = c;
+  (*column)++;
+  if (contains(buffer, operators, sizeOperators)) return OPERATOR;
+  if (contains(buffer, delimiters, sizeDelimiters)) return DELIMITER;
+
+  buffer[1] = fgetc(src);
+  (*column)++;
+  if (contains(buffer, compoundOperators, sizeCompoundOperators)) return COMPOUND_OPERATOR;
+  return UNKNOWN;
+}
+
+Node *lexer(FILE *sourceFile) {
   // initialize the list of tokens with a initial size of 8.
-  int count = 0, listSize = 256;
-  Token **tokenList = (Token **)malloc(listSize * sizeof(Token *));
+  Node *tokenList = (Node *)calloc(1, sizeof(Node));
 
   // start reading character by character.
   char c;
@@ -169,59 +191,54 @@ Token **lexer(FILE *sourceFile) {
   while ((c = fgetc(sourceFile)) != EOF) {
     char buffer[BUFFER_SIZE] = {0};
     if (isspace(c)) {
-      if (c == '\n') {
-        line++;
-        column = 1;
-      } else {
-        column++;
-      }
-      continue; // skip everything
+      type = processWhitespace(c, &line, &column);
+      continue; // skip token creation.
     } else if (isalnum(c)) {
-      readLexeme(sourceFile, &buffer, c, &column, isalnum);
-      if (contains(buffer, keywords, sizeKeywords)) type = KEYWORD;
-      else if (matchRegex("^[a-zA-Z_][a-zA-Z0-9_]*$", buffer)) type = IDENTIFIER;
-      else if (matchRegex("^-[0-9]*[1-9][0-9]*$|^[0-9]*$", buffer)) type = NUMBER;
-      else type = UNKNOWN;
+      type = processAlnum(sourceFile, buffer, c, &column);
     } else if (ispunct(c)) {
-      if (c == '(' && fpeek(sourceFile) == '*') {
-        // verify if token is a comment
-        readLexeme(sourceFile, &buffer, c, &column, notspace);
-        if (matchRegex("\\(\\*.*?\\*\\)", buffer)) type = COMMENTS;
-        else type = UNKNOWN;
-      } else if (c == '\'') {
-        // verify if token is a literal string
-        readLexeme(sourceFile, &buffer, c, &column, notspace);
-        type = UNKNOWN;
-      } else {
-        buffer[0] = c;
-        if (contains(buffer, operators, sizeOperators)) {
-          type = OPERATOR;
-        } else if (contains(buffer, delimiters, sizeDelimiters)) {
-          type = DELIMITER;
-        } else {
-          buffer[1] = fgetc(sourceFile);
-          if (contains(buffer, compoundOperators, sizeCompoundOperators)) {
-            type = COMPOUND_OPERATOR;
-          } else {
-            type = UNKNOWN;
-          }
-        }
-      }
+      type = processPunct(sourceFile, buffer, c, &column);
     }
 
     // create and store the new token
     Token *newToken = createToken(type, buffer, line, column);
-    tokenList[count++] = newToken;
-    if (count == listSize) 
-      tokenList = (Token **)realloc(tokenList, listSize * 2 * sizeof(Token *));
-      listSize *= 2;
+    pushList(tokenList, newToken);
   }
 
-  printTokenList(tokenList, count);
   return tokenList;
 }
 
+void printTokensCount(Node *list) {
+  int keywords=0, ids=0, nums=0, operators=0, compOperators=0, 
+      delims=0, comments=0, unknowns=0;
+  Node *aux = list->next;
+
+  while (aux != NULL) {
+    switch(aux->tok->type) {
+      case KEYWORD: keywords++; break;
+      case IDENTIFIER: ids++; break;
+      case NUMBER: nums++; break;
+      case OPERATOR: operators++; break;
+      case COMPOUND_OPERATOR: compOperators++; break;
+      case DELIMITER: delims++; break;
+      case COMMENTS: comments++; break;
+      case UNKNOWN: unknowns++; break;
+    }
+    aux = aux->next;
+  }
+
+  printf("KEYWORD: %d\n", keywords);
+  printf("IDENTIFIER: %d\n", ids);
+  printf("NUMBER: %d\n", nums);
+  printf("OPERATOR: %d\n", operators);
+  printf("COMPOUND OPERATOR: %d\n", compOperators);
+  printf("DELIMITER: %d\n", delims);
+  printf("COMMENTS: %d\n", comments);
+  printf("UNKNOWN: %d\n", unknowns);
+}
+
 int main(int argc, char *argv[]) {
+  Node *tokenList;
+
   // check if the number of passed arguments is less than 2
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <file>\n", argv[0]);
@@ -235,7 +252,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  lexer(sourceFile);
+  tokenList = lexer(sourceFile);
+  printTokenList(tokenList);
+  printTokensCount(tokenList);
 
   // close the file
   fclose(sourceFile);
