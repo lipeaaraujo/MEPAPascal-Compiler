@@ -62,6 +62,10 @@ char* strdup (const char* s) {
   return result;
 }
 
+int compare(const void *a, const void *b) {
+  return strcmp(*(const char **)a, *(const char **)b);
+}
+
 Token *createToken(TokenType type, char *lexeme, int line, int column) {
   Token *newToken = (Token *)malloc(sizeof(Token));
   newToken->type = type;
@@ -79,18 +83,6 @@ void pushList(Node *head, Token *tok) {
     return;
   }
   pushList(head->next, tok);
-}
-
-// Prints the list of tokens, only for debug purposes.
-void printTokenList(Node *tokenList) {
-  for (Node *aux=tokenList->next; aux != NULL; aux = aux->next) {
-    printf("(\"%s\", %d), ", aux->tok->lexeme, aux->tok->type);
-  }
-  printf("\n");
-}
-
-int compare(const void *a, const void *b) {
-  return strcmp(*(const char **)a, *(const char **)b);
 }
 
 int matchRegex(const char *pattern, const char *text) {
@@ -120,7 +112,7 @@ char fpeek(FILE *source) {
 }
 
 // Processes a whitespace character read by the lexer.
-TokenType processWhitespace(char c, int *line, int *column) {
+void processWhitespace(char c, int *line, int *column) {
   if (c == '\n') {
     (*line)++;
     *column = 1;
@@ -130,7 +122,7 @@ TokenType processWhitespace(char c, int *line, int *column) {
 }
 
 // Processes a alphanumeric character and reads the rest of the lexeme.
-TokenType processAlnum(FILE *src, char *buffer, char c, int *column) {
+TokenType processAlnum(FILE *src, char *buffer, char c, int *column) {  
   // read the lexeme.
   int i=0;
   do {
@@ -145,12 +137,27 @@ TokenType processAlnum(FILE *src, char *buffer, char c, int *column) {
   // return the token type
   if (contains(buffer, keywords, sizeKeywords)) return KEYWORD;
   if (matchRegex("^[a-zA-Z_][a-zA-Z0-9_]*$", buffer)) return IDENTIFIER;
-  if (matchRegex("^-[0-9]*[1-9][0-9]*$|^[0-9]*$", buffer)) return NUMBER;
+  return UNKNOWN;
+}
+
+TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
+  // read the lexeme.
+  int i=0;
+  do {
+    buffer[i++] = c;
+    c = fgetc(src);
+    (*column)++;
+  } while (isdigit(c) || c == '.');
+  ungetc(c, src);
+  (*column)--;
+  buffer[i] = '\0';
+
+  if (matchRegex("^(([0-9]+\\.*[0-9]*)|(-?[1-9]+\\.*[0-9]*0?[1-9]*)|(-[1-9]+0*\\.*[1-9]*0*[1-9]*)|(-0*\\.[0-9]*[1-9]+[0-9]*))$", buffer)) return NUMBER;
   return UNKNOWN;
 }
 
 // Processes punction characters.
-TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
+TokenType processPunct(FILE *src, char *buffer, char c, int *column, TokenType prevToken) {
   // check if it's a comment, compound, normal operator or a delimiter
   if (c == '(' && fpeek(src) == '*') {
     // read the lexeme
@@ -159,26 +166,40 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
       buffer[i++] = c;
       c = fgetc(src);
       (*column)++;
-    } while (ispunct(c));
-    ungetc(c, src);
-    (*column)--;
+    } while ((buffer[i-1] != ')' || buffer[i-2] != '*') && c != EOF);
     buffer[i] = '\0';
 
     if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
     else return UNKNOWN;
   }
 
+  if (c == '-') {
+    buffer[0] = c;
+    (*column)++;
+    if (isdigit(fpeek(src)) && (prevToken == KEYWORD || prevToken == IDENTIFIER || prevToken == NUMBER || prevToken == DELIMITER)) {
+      return OPERATOR;
+    } else {
+      return processDigit(src, buffer + 1, fpeek(src), column);
+    }
+  }
+
   buffer[0] = c;
   (*column)++;
+  buffer[1] = fgetc(src);
+  (*column)++;
+
+  if (contains(buffer, compoundOperators, sizeCompoundOperators)) return COMPOUND_OPERATOR;
+
+  ungetc(buffer[1], src);
+  buffer[1] = '\0';
+  (*column)--;
   if (contains(buffer, operators, sizeOperators)) return OPERATOR;
   if (contains(buffer, delimiters, sizeDelimiters)) return DELIMITER;
 
-  buffer[1] = fgetc(src);
-  (*column)++;
-  if (contains(buffer, compoundOperators, sizeCompoundOperators)) return COMPOUND_OPERATOR;
   return UNKNOWN;
 }
 
+// Main lexer function.
 Node *lexer(FILE *sourceFile) {
   // initialize the list of tokens with a initial size of 8.
   Node *tokenList = (Node *)calloc(1, sizeof(Node));
@@ -186,25 +207,36 @@ Node *lexer(FILE *sourceFile) {
   // start reading character by character.
   char c;
   int line = 1, column = 1;
-  TokenType type;
+  TokenType type, prevTokenType;
 
   while ((c = fgetc(sourceFile)) != EOF) {
     char buffer[BUFFER_SIZE] = {0};
     if (isspace(c)) {
-      type = processWhitespace(c, &line, &column);
+      processWhitespace(c, &line, &column);
       continue; // skip token creation.
-    } else if (isalnum(c)) {
+    } else if (isalpha(c)) {
       type = processAlnum(sourceFile, buffer, c, &column);
+    } else if (isdigit(c)) {
+      type = processDigit(sourceFile, buffer, c, &column);
     } else if (ispunct(c)) {
-      type = processPunct(sourceFile, buffer, c, &column);
+      type = processPunct(sourceFile, buffer, c, &column, prevTokenType);
     }
 
     // create and store the new token
     Token *newToken = createToken(type, buffer, line, column);
+    prevTokenType = type;
     pushList(tokenList, newToken);
   }
 
   return tokenList;
+}
+
+// Prints the list of tokens, only for debug purposes.
+void printTokenList(Node *tokenList) {
+  for (Node *aux=tokenList->next; aux != NULL; aux = aux->next) {
+    printf("(\"%s\", %d), ", aux->tok->lexeme, aux->tok->type);
+  }
+  printf("\n");
 }
 
 void printTokensCount(Node *list) {
