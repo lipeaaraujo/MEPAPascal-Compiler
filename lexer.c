@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <regex.h>
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 512
 
 typedef enum TokenType {
   KEYWORD,
@@ -141,12 +141,12 @@ TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
   (*column)--;
   buffer[i] = '\0';
 
-  if (matchRegex("[-+]?[0-9]*\\.?[0-9]+", buffer)) return NUMBER;
+  if (matchRegex("^[0-9]+$|^[0-9]+\\.?[0-9]+$", buffer)) return NUMBER;
   return UNKNOWN;
 }
 
 // Processes punction characters.
-TokenType processPunct(FILE *src, char *buffer, char c, int *column, TokenType prevToken) {
+TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
   // check if it's a comment, compound, normal operator or a delimiter
   if (c == '(' && fpeek(src) == '*') {
     // read the lexeme
@@ -156,24 +156,12 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column, TokenType p
       c = fgetc(src);
       (*column)++;
     } while (!(buffer[i-1] == '*' && c == ')') && c != EOF);
-    buffer[i++] = c;
+    if (c != EOF) buffer[i++] = c;
     buffer[i] = '\0';
 
     if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
     else return UNKNOWN;
   }
-
-  // if (c == '-') {
-  //   buffer[0] = c;
-  //   (*column)++;
-  //   if (isdigit(fpeek(src)) && (prevToken == KEYWORD || prevToken == IDENTIFIER ||
-  //                               prevToken == NUMBER || prevToken == DELIMITER)) {
-  //     return OPERATOR;
-  //   } else {
-  //     c = fgetc(src);
-  //     return processDigit(src, buffer + 1, c, column);
-  //   }
-  // }
 
   buffer[0] = c;
   (*column)++;
@@ -199,7 +187,7 @@ Node *lexer(FILE *sourceFile) {
   // start reading character by character.
   char c;
   int line = 1, column = 1;
-  TokenType type, prevTokenType;
+  TokenType type;
 
   while ((c = fgetc(sourceFile)) != EOF) {
     char buffer[BUFFER_SIZE] = {0};
@@ -211,12 +199,11 @@ Node *lexer(FILE *sourceFile) {
     } else if (isdigit(c)) {
       type = processDigit(sourceFile, buffer, c, &column);
     } else if (ispunct(c)) {
-      type = processPunct(sourceFile, buffer, c, &column, prevTokenType);
+      type = processPunct(sourceFile, buffer, c, &column);
     }
 
     // create and store the new token
     Token *newToken = createToken(type, buffer, line, column);
-    prevTokenType = type;
     pushList(tokenList, newToken);
   }
 
