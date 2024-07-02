@@ -14,12 +14,14 @@ Compile the main files using the Makefile:
 ```bash
 make
 ```
-After compilation, the executable "compiler" will be created, to run the compiler, run the executable passing a simplified Pascal file as argument:
+After compilation, a executable will have been created, run the executable passing a simplified **Pascal** file as argument:
 
 ```bash
 ./compiler source.pas
 ```
-To clean the executable, simply run the following make command:
+If there are no errors, an output **MEPA** file should be created
+
+To clear any compilation files, run the following command:
 
 ```bash
 make clean
