@@ -2,19 +2,25 @@
 
 Compiler of a simplified version of the Pascal language to MEPA, developed for the Compiladores course, lectured by Bruno César Ribas at the University of Brasília.
 
-## How to execute
+## How to use
 
 Clone this repository:
 ```bash
 git clone https://github.com/lipeaaraujo/PascalMEPA-Compiler.git
 ```
 
-Compile it:
+Compile the main files using the Makefile:
 
 ```bash
-gcc lexer.c -o lexer.exe
+make
 ```
-Pass a Pascal file as argument and run the compiler executable:
+After compilation, the executable "compiler" will be created, to run the compiler, run the executable passing a simplified Pascal file as argument:
+
 ```bash
-./lexico.exe example.pas
+./compiler source.pas
+```
+To clean the executable, simply run the following make command:
+
+```bash
+make clean
 ```

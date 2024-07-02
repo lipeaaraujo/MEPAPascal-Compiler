@@ -1,9 +1,32 @@
-#include "header/lexer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <regex.h>
+
+#define BUFFER_SIZE 512
+
+typedef enum TokenType {
+  KEYWORD,
+  IDENTIFIER,
+  NUMBER,
+  OPERATOR,
+  COMPOUND_OPERATOR,
+  DELIMITER,
+  COMMENTS,
+  UNKNOWN
+} TokenType;
+
+typedef struct Token {
+  TokenType type;
+  char lexeme[BUFFER_SIZE];
+  int line, column;
+} Token;
+
+typedef struct Node {
+  Token *tok;
+  struct Node *next;
+} Node;
 
 const char *keywords[] = {
   "and", "array", "begin", "div", "do",
@@ -226,4 +249,29 @@ void printTokensCount(Node *list) {
   printf("DELIMITER: %d\n", delims);
   printf("COMMENTS: %d\n", comments);
   printf("UNKNOWN: %d\n", unknowns);
+}
+
+int main(int argc, char *argv[]) {
+  Node *tokenList;
+
+  // check if the number of passed arguments is less than 2
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+    return 1;
+  }
+
+  // try to open the pascal file in read mode
+  FILE *sourceFile = fopen(argv[1], "r");
+  if (sourceFile == NULL) {
+    perror("Error opening file");
+    return 1;
+  }
+
+  tokenList = lexer(sourceFile);
+  //printTokenList(tokenList);
+  printTokensCount(tokenList);
+
+  // close the file
+  fclose(sourceFile);
+  return 0;
 }
