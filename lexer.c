@@ -152,7 +152,7 @@ TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
   (*column)--;
   buffer[i] = '\0';
 
-  if (matchRegex("^(([0-9]+\\.*[0-9]*)|(-?[1-9]+\\.*[0-9]*0?[1-9]*)|(-[1-9]+0*\\.*[1-9]*0*[1-9]*)|(-0*\\.[0-9]*[1-9]+[0-9]*))$", buffer)) return NUMBER;
+  if (matchRegex("[-+]?[0-9]*\\.?[0-9]+", buffer)) return NUMBER;
   return UNKNOWN;
 }
 
@@ -173,15 +173,17 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column, TokenType p
     else return UNKNOWN;
   }
 
-  if (c == '-') {
-    buffer[0] = c;
-    (*column)++;
-    if (isdigit(fpeek(src)) && (prevToken == KEYWORD || prevToken == IDENTIFIER || prevToken == NUMBER || prevToken == DELIMITER)) {
-      return OPERATOR;
-    } else {
-      return processDigit(src, buffer + 1, fpeek(src), column);
-    }
-  }
+  // if (c == '-') {
+  //   buffer[0] = c;
+  //   (*column)++;
+  //   if (isdigit(fpeek(src)) && (prevToken == KEYWORD || prevToken == IDENTIFIER ||
+  //                               prevToken == NUMBER || prevToken == DELIMITER)) {
+  //     return OPERATOR;
+  //   } else {
+  //     c = fgetc(src);
+  //     return processDigit(src, buffer + 1, c, column);
+  //   }
+  // }
 
   buffer[0] = c;
   (*column)++;
