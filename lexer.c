@@ -19,7 +19,7 @@ typedef enum TokenType {
 
 typedef struct Token {
   TokenType type;
-  char *lexeme;
+  char lexeme[BUFFER_SIZE];
   int line, column;
 } Token;
 
@@ -51,25 +51,10 @@ const char *delimiters[] = {
 };
 int sizeDelimiters = sizeof(delimiters) / sizeof(delimiters[0]);
 
-char* strdup (const char* s) {
-  size_t slen = strlen(s);
-  char* result = malloc(slen + 1);
-  if(result == NULL) {
-    return NULL;
-  }
-
-  memcpy(result, s, slen+1);
-  return result;
-}
-
-int compare(const void *a, const void *b) {
-  return strcmp(*(const char **)a, *(const char **)b);
-}
-
 Token *createToken(TokenType type, char *lexeme, int line, int column) {
   Token *newToken = (Token *)malloc(sizeof(Token));
   newToken->type = type;
-  newToken->lexeme = strdup(lexeme);
+  strcpy(newToken->lexeme, lexeme);
   newToken->line = line;
   newToken->column = column;
   return newToken;
@@ -85,8 +70,8 @@ void pushList(Node *head, Token *tok) {
   pushList(head->next, tok);
 }
 
-int matchRegex(const char *pattern, const char *text) {
-  // receives a pattern and a string, and verifies if the string matches the regex. 
+// Receives a pattern and a string, and verifies if the string matches the regex.
+int matchRegex(const char *pattern, const char *text) {   
   regex_t regex;
   int ret;
   
@@ -95,6 +80,10 @@ int matchRegex(const char *pattern, const char *text) {
   regfree(&regex);
   if (ret == REG_NOMATCH) return 0;
   return 1;
+}
+
+int compare(const void *a, const void *b) {
+  return strcmp(*(const char **)a, *(const char **)b);
 }
 
 // Verifies if a sorted array contains the argument string.
@@ -166,7 +155,8 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column, TokenType p
       buffer[i++] = c;
       c = fgetc(src);
       (*column)++;
-    } while ((buffer[i-1] != ')' || buffer[i-2] != '*') && c != EOF);
+    } while (!(buffer[i-1] == '*' && c == ')') && c != EOF);
+    buffer[i++] = c;
     buffer[i] = '\0';
 
     if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
