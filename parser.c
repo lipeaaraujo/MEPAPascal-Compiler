@@ -29,7 +29,8 @@ void matchToken(TokenType expected) {
   if (checkToken(expected)) {
     nextToken();
   } else {
-    fprintf(stderr, "error: unexpected token type %d\n", currentTok->tok->type);
+    fprintf(stderr, "error: unexpected token type %s at line %d\n",
+            currentTok->tok->lexeme, currentTok->tok->line);
     exit(1);
   }
 }
@@ -45,47 +46,84 @@ void matchLexeme(TokenType tokType, char *expected) {
   }
 }
 
+// Checks if the token ahead is of expected type
+int lookaheadToken(TokenType expected) {
+  if (currentTok->next == NULL) return 0;  
+  return currentTok->next->tok->type == expected;
+}
+
+// Checks if the lexeme of the token ahead is the expected lexeme
+int lookaheadLexeme(TokenType tokType, char *expected) {
+  if (currentTok->next == NULL) return 0;
+  return lookaheadToken(tokType) &&
+         (strcmp(currentTok->next->tok->lexeme, expected) == 0);
+}
+
 // Parser functions
-void program(); // edit
-void block(); // edit
-void labelDeclaration(); // implement
-void varDeclaration(); // edit
-void identifierList(); // edit
-void type(); // edit
-void subroutines(); // implement
-void procedure(); // implement
-void function(); // implement
-void params(); // implement
-void statementList(); // edit
-void statement(); // edit
-void assignment(); // implement
-void subroutineCall(); // implement
-void deviation(); // implement
-void ifStatement(); // edit
-void whileStatement(); // edit
-void writeStatement(); // edit
-void readStatement(); // edit
-void expressionList(); // implement
-void simpleExpression(); // edit
-void term(); // edit
-void factor(); // edit
+void program();
+void block();
+void labelDeclaration();
+void varDeclaration();
+void identifierList();
+void type();
+void subroutines();
+void procedure();
+void function();
+void params();
+void statementList();
+void statement();
+void assignment();
+void subroutineCall();
+void deviation();
+void ifStatement();
+void whileStatement();
+void writeStatement();
+void readStatement();
+void expressionList();
+void expression();
+void relation();
+void simpleExpression();
+void term();
+void factor();
 
 void program() {
   matchLexeme(KEYWORD, "program");
   matchToken(IDENTIFIER);
+  if (checkLexeme(DELIMITER, "(")) {
+    matchLexeme(DELIMITER, "(");
+    identifierList();
+    matchLexeme(DELIMITER, ")");    
+  }
   matchLexeme(DELIMITER, ";");
   block();
   matchLexeme(DELIMITER, ".");
 }
 
 void block() {
-  declarationList();
+  if (checkLexeme(KEYWORD, "label")) labelDeclaration();
+  if (checkLexeme(KEYWORD, "var")) varDeclaration();
+  if (checkLexeme(KEYWORD, "procedure") ||
+      checkLexeme(KEYWORD, "function")) subroutines();
   statementList();
 }
 
+void labelDeclaration() {
+  matchLexeme(KEYWORD, "label");
+  matchToken(NUMBER);
+  while (checkLexeme(DELIMITER, ",")) {
+    matchLexeme(DELIMITER, ",");
+    matchToken(NUMBER);
+  }
+  matchLexeme(DELIMITER, ";");
+}
+
 void varDeclaration() {
-  while (checkLexeme(KEYWORD, "var")) {
-    matchLexeme(KEYWORD, "var");
+  matchLexeme(KEYWORD, "var");
+  identifierList();
+  matchLexeme(DELIMITER, ":");
+  type();
+  matchLexeme(DELIMITER, ";");
+  while (checkToken(IDENTIFIER)) {
     identifierList();
     matchLexeme(DELIMITER, ":");
     type();
@@ -103,7 +141,7 @@ void identifierList() {
 
 void type() {
   if (!checkToken(IDENTIFIER)) {
-    printf("error: unexpected token %d\n", currentTok->tok->type);
+    fprintf(stderr, "error: unexpected token %d\n", currentTok->tok->type);
     exit(1);
   }
 
@@ -112,36 +150,101 @@ void type() {
       checkLexeme(IDENTIFIER, "boolean")) {
     matchToken(IDENTIFIER);
   } else {
-    printf("error: invalid type %s\n", currentTok->tok->lexeme);
+    fprintf(stderr, "error: invalid type %s\n", currentTok->tok->lexeme);
     exit(1);
   }
 }
 
+void subroutines() {
+  while (checkLexeme(KEYWORD, "procedure") ||
+      checkLexeme(KEYWORD, "function")) {
+    if (checkLexeme(KEYWORD, "procedure")) procedure();
+    if (checkLexeme(KEYWORD, "function")) function();
+  }
+}
+
+void procedure() {
+  matchLexeme(KEYWORD, "procedure");
+  matchToken(IDENTIFIER);
+  if (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER))
+    params();
+  matchLexeme(DELIMITER, ";");
+  block();
+}
+
+void function() {
+  matchLexeme(KEYWORD, "function");
+  matchToken(IDENTIFIER);
+    if (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER))
+    params();
+  matchLexeme(DELIMITER, ";");
+  block();  
+}
+
+void params() {
+  if (checkLexeme(KEYWORD, "var")) matchLexeme(KEYWORD, "var");
+  identifierList();
+  matchLexeme(DELIMITER, ":");
+  matchToken(IDENTIFIER);
+  while (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER)) {
+    if (checkLexeme(KEYWORD, "var")) matchLexeme(KEYWORD, "var");
+    identifierList();
+    matchLexeme(DELIMITER, ":");
+    matchToken(IDENTIFIER);
+  }
+}
+
 void statementList() {
+  matchLexeme(KEYWORD, "begin");
   statement();
   while (checkLexeme(DELIMITER, ";")) {
     matchLexeme(DELIMITER, ";");
     statement();
   }
+  matchLexeme(KEYWORD, "end");
 }
 
 void statement() {
+  if (checkToken(NUMBER)) {
+    matchToken(NUMBER);
+    matchLexeme(DELIMITER, ":");
+  } 
+
   if (checkToken(IDENTIFIER)) {
-    // assignment
-    matchToken(IDENTIFIER);
-    matchLexeme(COMPOUND_OPERATOR, ":=");
-    expression();
+    if (lookaheadLexeme(COMPOUND_OPERATOR, ":=")) assignment();
+    else subroutineCall();
   } 
   else if (checkLexeme(KEYWORD, "if")) ifStatement();
   else if (checkLexeme(KEYWORD, "while")) whileStatement();
   else if (checkLexeme(KEYWORD, "write")) writeStatement();
   else if (checkLexeme(KEYWORD, "read")) readStatement();
-  else if (checkLexeme(KEYWORD, "begin")) beginEndBlock();
-  else if (checkLexeme(KEYWORD, "end"));
+  else if (checkLexeme(KEYWORD, "begin")) statementList();
+  else if (checkLexeme(KEYWORD, "goto")) deviation();
+  else if (checkLexeme(KEYWORD, "end")) return; 
   else {
-    printf("error: expected statement, found %s\n", currentTok->tok->lexeme);
+    fprintf(stderr, "error: expected statement, found %s\n", currentTok->tok->lexeme);
     exit(1);
   }
+}
+
+void assignment() {
+  matchToken(IDENTIFIER);
+  matchLexeme(COMPOUND_OPERATOR, ":=");
+  expression();
+} 
+
+void subroutineCall() {
+  matchToken(IDENTIFIER);
+  if (checkLexeme(DELIMITER, "(")) {
+    matchLexeme(DELIMITER, "(");
+    expressionList();
+    matchLexeme(DELIMITER, ")");
+  }
+}
+
+void deviation() {
+  matchLexeme(KEYWORD, "goto");
+  matchToken(NUMBER);
 }
 
 void ifStatement() {
@@ -165,16 +268,8 @@ void whileStatement() {
 void writeStatement() {
   matchLexeme(KEYWORD, "write");
   matchLexeme(DELIMITER, "(");
-  writeParameters();
+  expressionList();
   matchLexeme(DELIMITER, ")");
-}
-
-void writeParameters() {
-  expression();
-  while (checkLexeme(DELIMITER, ",")) {
-    matchLexeme(DELIMITER, ",");
-    expression();
-  }
 }
 
 void readStatement() {
@@ -184,16 +279,47 @@ void readStatement() {
   matchLexeme(DELIMITER, ")");
 }
 
-void beginEndBlock() {
-  matchLexeme(KEYWORD, "begin");
-  statementList();
-  matchLexeme(KEYWORD, "end");
+void expressionList() {
+  expression();
+  while (checkLexeme(DELIMITER, ",")) {
+    matchLexeme(DELIMITER, ",");
+    expression();
+  }
+}
+
+void expression() {
+  simpleExpression();
+  if (checkLexeme(OPERATOR, "=") ||
+      checkLexeme(COMPOUND_OPERATOR, "<>") ||
+      checkLexeme(OPERATOR, "<") ||
+      checkLexeme(COMPOUND_OPERATOR, "<=") ||
+      checkLexeme(COMPOUND_OPERATOR, ">=") ||
+      checkLexeme(OPERATOR, ">")) {
+    relation();
+    simpleExpression();
+  }
+}
+
+void relation() {
+  if (checkLexeme(OPERATOR, "=") ||
+      checkLexeme(COMPOUND_OPERATOR, "<>") ||
+      checkLexeme(OPERATOR, "<") ||
+      checkLexeme(COMPOUND_OPERATOR, "<=") ||
+      checkLexeme(COMPOUND_OPERATOR, ">=") ||
+      checkLexeme(OPERATOR, ">")) {
+    nextToken();
+  }
 }
 
 void simpleExpression() {
+  if (checkLexeme(OPERATOR, "+") ||
+      checkLexeme(OPERATOR, "-")) {
+    matchToken(OPERATOR);
+  }
   term();
   while (checkLexeme(OPERATOR, "+") ||
-         checkLexeme(OPERATOR, "-")) {
+         checkLexeme(OPERATOR, "-") ||
+         checkLexeme(KEYWORD, "or")) {
     nextToken();
     term();
   }
@@ -202,7 +328,9 @@ void simpleExpression() {
 void term() {
   factor();
   while (checkLexeme(OPERATOR, "*") ||
-         checkLexeme(OPERATOR, "/")) {
+         checkLexeme(OPERATOR, "/") ||
+         checkLexeme(KEYWORD, "div") ||
+         checkLexeme(KEYWORD, "and")) {
     nextToken();
     factor();
   }
@@ -210,15 +338,18 @@ void term() {
 
 void factor() {
   if (checkToken(IDENTIFIER)) {
-    matchToken(IDENTIFIER);
+    if (lookaheadLexeme(DELIMITER, "(")) subroutineCall();
+    else matchToken(IDENTIFIER);
   } else if (checkToken(NUMBER)) {
     matchToken(NUMBER);
   } else if (checkLexeme(DELIMITER, "(")) {
     matchLexeme(DELIMITER, "(");
     expression();
     matchLexeme(DELIMITER, ")");
+  } else if (checkLexeme(KEYWORD, "not")) {
+    factor();
   } else {
-    printf("error: invalid factor %s\n", currentTok->tok->lexeme);
+    fprintf(stderr, "error: invalid factor %s\n", currentTok->tok->lexeme);
     exit(1);
   }
 }
@@ -237,7 +368,7 @@ void parser(Node *tokenList) {
 }
 
 // syntax:
-// <program>                 -> 'program' <IDENTIFIER> '(' <identifier-list> ')' ';' <block> '.'
+// <program>                 -> 'program' <IDENTIFIER> ['(' <identifier-list> ')'] ';' <block> '.'
 
 // <block>                   -> [<label-declaration>] [<var-declaration>]
 //                              [<subroutines>] <statement-list>
@@ -290,5 +421,5 @@ void parser(Node *tokenList) {
 
 // <term>                    -> <factor> (('*' | '/' | 'div' | 'and') <factor>)
 
-// <factor>                  -> identifier | number | <subroutine-call> | '(' expression ')' |
+// <factor>                  -> <IDENTIFIER> | <NUMBER> | <subroutine-call> | '(' <expression> ')' |
 //                              'not' <factor>
