@@ -46,22 +46,29 @@ void matchLexeme(TokenType tokType, char *expected) {
 }
 
 // Parser functions
-void program();
-void block();
-void declarationList();
-void identifierList();
-void type();
-void statementList();
-void statement();
-void ifStatement();
-void whileStatement();
-void writeStatement();
-void writeParameters();
-void readStatement();
-void beginEndBlock();
-void expression();
-void term();
-void factor();
+void program(); // edit
+void block(); // edit
+void labelDeclaration(); // implement
+void varDeclaration(); // edit
+void identifierList(); // edit
+void type(); // edit
+void subroutines(); // implement
+void procedure(); // implement
+void function(); // implement
+void params(); // implement
+void statementList(); // edit
+void statement(); // edit
+void assignment(); // implement
+void subroutineCall(); // implement
+void deviation(); // implement
+void ifStatement(); // edit
+void whileStatement(); // edit
+void writeStatement(); // edit
+void readStatement(); // edit
+void expressionList(); // implement
+void simpleExpression(); // edit
+void term(); // edit
+void factor(); // edit
 
 void program() {
   matchLexeme(KEYWORD, "program");
@@ -76,7 +83,7 @@ void block() {
   statementList();
 }
 
-void declarationList() {
+void varDeclaration() {
   while (checkLexeme(KEYWORD, "var")) {
     matchLexeme(KEYWORD, "var");
     identifierList();
@@ -183,7 +190,7 @@ void beginEndBlock() {
   matchLexeme(KEYWORD, "end");
 }
 
-void expression() {
+void simpleExpression() {
   term();
   while (checkLexeme(OPERATOR, "+") ||
          checkLexeme(OPERATOR, "-")) {
@@ -229,38 +236,59 @@ void parser(Node *tokenList) {
   }
 }
 
-// Simplified Pascal Syntax
-// program         -> 'program' identifier ';' block '.'
+// syntax:
+// <program>                 -> 'program' <IDENTIFIER> '(' <identifier-list> ')' ';' <block> '.'
 
-// block           -> declaration-list statement-list
+// <block>                   -> [<label-declaration>] [<var-declaration>]
+//                              [<subroutines>] <statement-list>
 
-// declaration-list -> ('var' identifier-list ':' type ';')*
+// <label-declaration>       -> 'label' <NUMBER> (',' <NUMBER>)* ';'
 
-// identifier-list -> identifier (',' identifier)*
+// <var-declaration>         -> 'var' <identifier-list> ':' <type>
+//                              (';' <identifier-list> ':' <type>)* ';'
 
-// type            -> 'integer' | 'real' | 'boolean'
+// <identifier-list>         -> <IDENTIFIER> (',' <IDENTIFIER>)*
 
-// statement-list  -> statement (';' statement)*
+// <type>                    -> 'integer' | 'real' | 'boolean'
 
-// statement       -> assignment | if-statement | while-statement |
-//                    write-statement | read-statement | begin-end-block
+// <subroutines>             -> (<procedure> | <function>)*
 
-// assignment      -> identifier ':=' expression
+// <procedure>               -> 'procedure' <IDENTIFIER> [<params>] ';' <block>
 
-// if-statement    -> 'if' expression 'then' statement ('else' statement)?
+// <function>                -> 'function' <IDENTIFIER> [<params>] ';' <block>
 
-// while-statement -> 'while' expression 'do' statement
+// <params>                  -> [var] <identifier-list> : <IDENTIFIER> 
+//                              ([var] <identifier-list> : <IDENTIFIER>)
 
-// write-statement -> 'write' '(' write-parameters ')'
+// <statement-list>          -> 'begin' <statement> (';' <statement>) 'end'
 
-// write-parameters -> expression (',' expression)*
+// <statement>               -> [<NUMBER> ':'] <assignment> | <procedure-call> | <deviation> |
+//                              <statement-list> | <if-statement> | <while-statement> |
+//                              <write-statement> | <read-statement>
 
-// read-statement  -> 'read' '(' identifier-list ')'
+// <assignment>              -> <IDENTIFIER> ':=' <expression>
 
-// begin-end-block -> 'begin' statement-list 'end'
+// <subroutine-call>          -> <IDENTIFIER> ['(' <expression-list> ')']
 
-// expression      -> term (('+' | '-') term)*
+// <deviation>               -> 'goto' <NUMBER>
 
-// term            -> factor (('' | '/') factor)
+// <if-statement>            -> 'if' <expression> 'then' <statement> ('else' <statement>)?
 
-// factor          -> identifier | number | '(' expression ')'
+// <while-statement>         -> 'while' <expression> 'do' <statement>
+
+// <write-statement>         -> 'write' '(' <expression-list> ')'
+
+// <read-statement>          -> 'read' '(' <identifier-list> ')'
+
+// <expression-list>         -> <expression> (',' <expression>)*
+
+// <expression>              -> <simple-expression> [<relation> <simple-expression>]
+
+// <relation>                -> '=' | '<>' | '<' | '<=' | '>=' | '>'
+
+// <simple-expression>       -> ['+' | '-'] <term> (('+' | '-' | 'or') <term>)*
+
+// <term>                    -> <factor> (('*' | '/' | 'div' | 'and') <factor>)
+
+// <factor>                  -> identifier | number | <subroutine-call> | '(' expression ')' |
+//                              'not' <factor>
