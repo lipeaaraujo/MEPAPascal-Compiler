@@ -4,7 +4,58 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum ErrorType {
+  UNEXPECTED_TYPE,
+  UNEXPECTED_LEXEME,
+  INVALID_TYPE,
+  INVALID_STATEMENT,
+  INVALID_FACTOR,
+  INVALID_END
+} ErrorType;
+
 Node *currentTok;
+
+// Handles a error based on it's error type
+void handleError(TokenType expectedType, char *expectedLexeme,
+                 ErrorType error) {
+  char *types[] = {
+    "keyword", "identifier", "number", "operator", 
+    "compound_operator", "delimiter", "comments", "unknown"
+  };
+
+  switch (error) {
+    case UNEXPECTED_TYPE:
+      fprintf(stderr, "Error: expected type %s but found %s at line %d\n",
+              types[expectedType], types[currentTok->tok->type], currentTok->tok->line);
+      break;
+    case UNEXPECTED_LEXEME:
+      fprintf(stderr, "Error: expected \"%s\" but found \"%s\" at line %d\n",
+              expectedLexeme, currentTok->tok->lexeme, currentTok->tok->line);
+      break;
+    case INVALID_TYPE:
+      fprintf(stderr, "Error: expected valid type but found \"%s\" at line %d\n",
+              currentTok->tok->lexeme, currentTok->tok->line);
+      break;
+    case INVALID_STATEMENT:
+      fprintf(stderr, "Error: expected valid statement but found \"%s\" at line %d\n",
+              currentTok->tok->lexeme, currentTok->tok->line);
+      break;
+    case INVALID_FACTOR:
+      fprintf(stderr, "Error: expected valid factor but found \"%s\" at line %d\n",
+              currentTok->tok->lexeme, currentTok->tok->line);
+      break;
+    case INVALID_END:
+      fprintf(stderr, "Error: unexpected token after end \"%s\"",
+              currentTok->tok->lexeme);
+      break;
+    default:
+      fprintf(stderr, "Error: unknown error");
+      break;
+  }
+
+  printf("Rejeita\n");
+  exit(1);
+}
 
 // Moves to the next token in the list
 void nextToken() {
@@ -29,9 +80,7 @@ void matchToken(TokenType expected) {
   if (checkToken(expected)) {
     nextToken();
   } else {
-    fprintf(stderr, "error: unexpected token type %s at line %d\n",
-            currentTok->tok->lexeme, currentTok->tok->line);
-    exit(1);
+    handleError(expected, "", UNEXPECTED_TYPE);
   }
 }
 
@@ -40,9 +89,7 @@ void matchLexeme(TokenType tokType, char *expected) {
   if (checkLexeme(tokType, expected)) {
     nextToken();
   } else {
-    fprintf(stderr, "error: expected \"%s\" found \"%s\" at line %d\n",
-           expected, currentTok->tok->lexeme, currentTok->tok->line);
-    exit(1);
+    handleError(tokType, expected, UNEXPECTED_LEXEME);
   }
 }
 
@@ -141,8 +188,7 @@ void identifierList() {
 
 void type() {
   if (!checkToken(IDENTIFIER)) {
-    fprintf(stderr, "error: unexpected token %d\n", currentTok->tok->type);
-    exit(1);
+    handleError(IDENTIFIER, "", UNEXPECTED_TYPE);
   }
 
   if (checkLexeme(IDENTIFIER, "integer") ||
@@ -150,8 +196,7 @@ void type() {
       checkLexeme(IDENTIFIER, "boolean")) {
     matchToken(IDENTIFIER);
   } else {
-    fprintf(stderr, "error: invalid type %s\n", currentTok->tok->lexeme);
-    exit(1);
+    handleError(IDENTIFIER, "", INVALID_TYPE);
   }
 }
 
@@ -160,6 +205,7 @@ void subroutines() {
       checkLexeme(KEYWORD, "function")) {
     if (checkLexeme(KEYWORD, "procedure")) procedure();
     if (checkLexeme(KEYWORD, "function")) function();
+    matchLexeme(DELIMITER, ";");
   }
 }
 
@@ -222,8 +268,7 @@ void statement() {
   else if (checkLexeme(KEYWORD, "goto")) deviation();
   else if (checkLexeme(KEYWORD, "end")) return; 
   else {
-    fprintf(stderr, "error: expected statement, found %s\n", currentTok->tok->lexeme);
-    exit(1);
+    handleError(KEYWORD, "", INVALID_STATEMENT);
   }
 }
 
@@ -349,8 +394,7 @@ void factor() {
   } else if (checkLexeme(KEYWORD, "not")) {
     factor();
   } else {
-    fprintf(stderr, "error: invalid factor %s\n", currentTok->tok->lexeme);
-    exit(1);
+    handleError(UNKNOWN, "", INVALID_FACTOR);
   }
 }
 
