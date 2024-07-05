@@ -8,7 +8,9 @@ Node *currentTok;
 
 // Moves to the next token in the list
 void nextToken() {
-  if (currentTok != NULL) currentTok = currentTok->next;
+  if (currentTok != NULL) {
+    currentTok = currentTok->next;
+  }
 }
 
 // Checks if current token type is the expected type
@@ -26,7 +28,7 @@ void matchToken(TokenType expected) {
   if (checkToken(expected)) {
     nextToken();
   } else {
-    printf("error: unexpected token %d\n", currentTok->tok->type);
+    fprintf(stderr, "error: unexpected token type %d\n", currentTok->tok->type);
     exit(1);
   }
 }
@@ -36,7 +38,8 @@ void matchLexeme(char *expected) {
   if (checkLexeme(expected)) {
     nextToken();
   } else {
-    printf("error: expected %s found %s\n", expected, currentTok->tok->lexeme);
+    fprintf(stderr, "error: expected \"%s\" found \"%s\" at line %d\n",
+           expected, currentTok->tok->lexeme, currentTok->tok->line);
     exit(1);
   }
 }
@@ -92,14 +95,14 @@ void identifierList() {
 
 void type() {
   if (!checkToken(IDENTIFIER)) {
-    printf("erro: esperado tipo, encontrado %s\n", currentTok->tok->lexeme);
+    printf("error: unexpected token %d\n", currentTok->tok->type);
     exit(1);
   }
 
   if (checkLexeme("integer") || checkLexeme("real") == 0 || checkLexeme("boolean")) {
     matchToken(IDENTIFIER);
   } else {
-    printf("erro: tipo inválido %s\n", currentTok->tok->lexeme);
+    printf("error: invalid type %s\n", currentTok->tok->lexeme);
     exit(1);
   }
 }
@@ -124,8 +127,9 @@ void statement() {
   else if (checkLexeme("write")) writeStatement();
   else if (checkLexeme("read")) readStatement();
   else if (checkLexeme("begin")) beginEndBlock();
+  else if (checkLexeme("end"));
   else {
-    printf("erro: declaração inválida %s\n", currentTok->tok->lexeme);
+    printf("error: expected statement, found %s\n", currentTok->tok->lexeme);
     exit(1);
   }
 }
@@ -157,7 +161,7 @@ void writeStatement() {
 
 void writeParameters() {
   expression();
-  while (checkLexeme("m")) {
+  while (checkLexeme(",")) {
     matchLexeme(",");
     expression();
   }
@@ -202,7 +206,7 @@ void factor() {
     expression();
     matchLexeme(")");
   } else {
-    printf("erro: fator inválido %s\n", currentTok->tok->lexeme);
+    printf("error: invalid factor %s\n", currentTok->tok->lexeme);
     exit(1);
   }
 }
@@ -234,7 +238,7 @@ void parser(Node *tokenList) {
 // statement-list  -> statement (';' statement)*
 
 // statement       -> assignment | if-statement | while-statement |
-// write-statement | read-statement | begin-end-block
+//                    write-statement | read-statement | begin-end-block
 
 // assignment      -> identifier ':=' expression
 

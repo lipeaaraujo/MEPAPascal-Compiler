@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 
   tokenList = lexer(sourceFile);
   printTokenList(tokenList);
-  printTokensCount(tokenList);
+  // printTokensCount(tokenList);
   parser(tokenList);
 
   // close the file
