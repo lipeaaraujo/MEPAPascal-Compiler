@@ -19,8 +19,9 @@ int checkToken(TokenType expected) {
 }
 
 // Checks if current lexeme is the expected lexeme
-int checkLexeme(char *expected) {
-  return (strcmp(currentTok->tok->lexeme, expected) == 0);
+int checkLexeme(TokenType tokType, char *expected) {
+  return checkToken(tokType) &&
+         (strcmp(currentTok->tok->lexeme, expected) == 0);
 }
 
 // Moves to the next token if current token type matches expected
@@ -34,8 +35,8 @@ void matchToken(TokenType expected) {
 }
 
 // Moves to the next token if current lexeme matches expected
-void matchLexeme(char *expected) {
-  if (checkLexeme(expected)) {
+void matchLexeme(TokenType tokType, char *expected) {
+  if (checkLexeme(tokType, expected)) {
     nextToken();
   } else {
     fprintf(stderr, "error: expected \"%s\" found \"%s\" at line %d\n",
@@ -63,11 +64,11 @@ void term();
 void factor();
 
 void program() {
-  matchLexeme("program");
+  matchLexeme(KEYWORD, "program");
   matchToken(IDENTIFIER);
-  matchLexeme(";");
+  matchLexeme(DELIMITER, ";");
   block();
-  matchLexeme(".");
+  matchLexeme(DELIMITER, ".");
 }
 
 void block() {
@@ -76,19 +77,19 @@ void block() {
 }
 
 void declarationList() {
-  while (checkLexeme("var")) {
-    matchLexeme("var");
+  while (checkLexeme(KEYWORD, "var")) {
+    matchLexeme(KEYWORD, "var");
     identifierList();
-    matchLexeme(":");
+    matchLexeme(DELIMITER, ":");
     type();
-    matchLexeme(";");
+    matchLexeme(DELIMITER, ";");
   }
 }
 
 void identifierList() {
   matchToken(IDENTIFIER);
-  while (checkLexeme(",")) {
-    matchLexeme(",");
+  while (checkLexeme(DELIMITER, ",")) {
+    matchLexeme(DELIMITER, ",");
     matchToken(IDENTIFIER);
   }
 }
@@ -99,7 +100,9 @@ void type() {
     exit(1);
   }
 
-  if (checkLexeme("integer") || checkLexeme("real") == 0 || checkLexeme("boolean")) {
+  if (checkLexeme(IDENTIFIER, "integer") ||
+      checkLexeme(IDENTIFIER, "real") == 0 ||
+      checkLexeme(IDENTIFIER, "boolean")) {
     matchToken(IDENTIFIER);
   } else {
     printf("error: invalid type %s\n", currentTok->tok->lexeme);
@@ -109,8 +112,8 @@ void type() {
 
 void statementList() {
   statement();
-  while (checkLexeme(";")) {
-    matchLexeme(";");
+  while (checkLexeme(DELIMITER, ";")) {
+    matchLexeme(DELIMITER, ";");
     statement();
   }
 }
@@ -119,15 +122,15 @@ void statement() {
   if (checkToken(IDENTIFIER)) {
     // assignment
     matchToken(IDENTIFIER);
-    matchLexeme(":=");
+    matchLexeme(COMPOUND_OPERATOR, ":=");
     expression();
   } 
-  else if (checkLexeme("if")) ifStatement();
-  else if (checkLexeme("while")) whileStatement();
-  else if (checkLexeme("write")) writeStatement();
-  else if (checkLexeme("read")) readStatement();
-  else if (checkLexeme("begin")) beginEndBlock();
-  else if (checkLexeme("end"));
+  else if (checkLexeme(KEYWORD, "if")) ifStatement();
+  else if (checkLexeme(KEYWORD, "while")) whileStatement();
+  else if (checkLexeme(KEYWORD, "write")) writeStatement();
+  else if (checkLexeme(KEYWORD, "read")) readStatement();
+  else if (checkLexeme(KEYWORD, "begin")) beginEndBlock();
+  else if (checkLexeme(KEYWORD, "end"));
   else {
     printf("error: expected statement, found %s\n", currentTok->tok->lexeme);
     exit(1);
@@ -135,54 +138,55 @@ void statement() {
 }
 
 void ifStatement() {
-  matchLexeme("if");
+  matchLexeme(KEYWORD, "if");
   expression();
-  matchLexeme("then");
+  matchLexeme(KEYWORD, "then");
   statement();
-  if (checkLexeme("else")) {
-    matchLexeme("else");
+  if (checkLexeme(KEYWORD, "else")) {
+    matchLexeme(KEYWORD, "else");
     statement();
   }
 }
 
 void whileStatement() {
-  matchLexeme("while");
+  matchLexeme(KEYWORD, "while");
   expression();
-  matchLexeme("do");
+  matchLexeme(KEYWORD, "do");
   statement();
 }
 
 void writeStatement() {
-  matchLexeme("write");
-  matchLexeme("(");
+  matchLexeme(KEYWORD, "write");
+  matchLexeme(DELIMITER, "(");
   writeParameters();
-  matchLexeme(")");
+  matchLexeme(DELIMITER, ")");
 }
 
 void writeParameters() {
   expression();
-  while (checkLexeme(",")) {
-    matchLexeme(",");
+  while (checkLexeme(DELIMITER, ",")) {
+    matchLexeme(DELIMITER, ",");
     expression();
   }
 }
 
 void readStatement() {
-  matchLexeme("read");
-  matchLexeme("(");
+  matchLexeme(KEYWORD, "read");
+  matchLexeme(DELIMITER, "(");
   identifierList();
-  matchLexeme(")");
+  matchLexeme(DELIMITER, ")");
 }
 
 void beginEndBlock() {
-  matchLexeme("begin");
+  matchLexeme(KEYWORD, "begin");
   statementList();
-  matchLexeme("end");
+  matchLexeme(KEYWORD, "end");
 }
 
 void expression() {
   term();
-  while (checkToken(OPERATOR) && (checkLexeme("+") || checkLexeme("-") == 0)) {
+  while (checkLexeme(OPERATOR, "+") ||
+         checkLexeme(OPERATOR, "-")) {
     nextToken();
     term();
   }
@@ -190,7 +194,8 @@ void expression() {
 
 void term() {
   factor();
-  while (checkToken(OPERATOR) && (checkLexeme("*") || checkLexeme("/"))) {
+  while (checkLexeme(OPERATOR, "*") ||
+         checkLexeme(OPERATOR, "/")) {
     nextToken();
     factor();
   }
@@ -201,10 +206,10 @@ void factor() {
     matchToken(IDENTIFIER);
   } else if (checkToken(NUMBER)) {
     matchToken(NUMBER);
-  } else if (checkLexeme("(")) {
-    matchLexeme("(");
+  } else if (checkLexeme(DELIMITER, "(")) {
+    matchLexeme(DELIMITER, "(");
     expression();
-    matchLexeme(")");
+    matchLexeme(DELIMITER, ")");
   } else {
     printf("error: invalid factor %s\n", currentTok->tok->lexeme);
     exit(1);
