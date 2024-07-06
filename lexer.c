@@ -114,7 +114,7 @@ TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
     buffer[i++] = c;
     c = fgetc(src);
     (*column)++;
-  } while (isdigit(c) || c == '.');
+  } while (isdigit(c) || (c == '.' && isdigit(c == '.')));
   ungetc(c, src);
   (*column)--;
   buffer[i] = '\0';
@@ -135,9 +135,10 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
       (*column)++;
     } while (!(buffer[i-1] == '*' && c == ')') && c != EOF);
     if (c != EOF) buffer[i++] = c;
+    else ungetc(c, src);
     buffer[i] = '\0';
 
-    if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
+    if (matchRegex("\\(\\*.*?\\*\\)", buffer) || c == EOF) return COMMENTS;
     else return UNKNOWN;
   }
 
@@ -185,10 +186,12 @@ Node *lexer(FILE *sourceFile) {
     }
 
     // create and store the new token
-    if (type != COMMENTS) {
-      Token *newToken = createToken(type, buffer, line, column);
-      pushList(tokenList, newToken);
-    }
+    // if (type != COMMENTS) {
+    //   Token *newToken = createToken(type, buffer, line, column);
+    //   pushList(tokenList, newToken);
+    // }
+    Token *newToken = createToken(type, buffer, line, column);
+    pushList(tokenList, newToken);
   }
 
   // add the eof token.

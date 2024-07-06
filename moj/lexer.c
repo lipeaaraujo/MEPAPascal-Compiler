@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <regex.h>
 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 4096
 
 typedef enum TokenType {
   KEYWORD,
@@ -14,7 +14,8 @@ typedef enum TokenType {
   COMPOUND_OPERATOR,
   DELIMITER,
   COMMENTS,
-  UNKNOWN
+  UNKNOWN,
+  END_OF_FILE
 } TokenType;
 
 typedef struct Token {
@@ -31,7 +32,8 @@ typedef struct Node {
 const char *keywords[] = {
   "and", "array", "begin", "div", "do",
   "else", "end", "function", "goto", "if", "label", "not", "of", "or",
-  "procedure", "program", "read", "then", "type", "var", "while", "write"
+  "procedure", "program", "read", "then", "type", "var", "while", 
+  "write"
 };
 int sizeKeywords = sizeof(keywords) / sizeof(keywords[0]);
 
@@ -136,7 +138,7 @@ TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
     buffer[i++] = c;
     c = fgetc(src);
     (*column)++;
-  } while (isdigit(c) || c == '.');
+  } while (isdigit(c) || (c == '.' && isdigit(c == '.')));
   ungetc(c, src);
   (*column)--;
   buffer[i] = '\0';
@@ -157,9 +159,10 @@ TokenType processPunct(FILE *src, char *buffer, char c, int *column) {
       (*column)++;
     } while (!(buffer[i-1] == '*' && c == ')') && c != EOF);
     if (c != EOF) buffer[i++] = c;
+    else ungetc(c, src);
     buffer[i] = '\0';
 
-    if (matchRegex("\\(\\*.*?\\*\\)", buffer)) return COMMENTS;
+    if (matchRegex("\\(\\*.*?\\*\\)", buffer) || c == EOF) return COMMENTS;
     else return UNKNOWN;
   }
 
@@ -207,9 +210,17 @@ Node *lexer(FILE *sourceFile) {
     }
 
     // create and store the new token
+    // if (type != COMMENTS) {
+    //   Token *newToken = createToken(type, buffer, line, column);
+    //   pushList(tokenList, newToken);
+    // }
     Token *newToken = createToken(type, buffer, line, column);
     pushList(tokenList, newToken);
   }
+
+  // add the eof token.
+  Token *newToken = createToken(END_OF_FILE, "end of file", line, column);
+  pushList(tokenList, newToken);
 
   return tokenList;
 }
@@ -237,6 +248,7 @@ void printTokensCount(Node *list) {
       case DELIMITER: delims++; break;
       case COMMENTS: comments++; break;
       case UNKNOWN: unknowns++; break;
+      case END_OF_FILE: break;
     }
     aux = aux->next;
   }

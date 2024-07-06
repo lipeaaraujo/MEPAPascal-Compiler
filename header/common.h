@@ -1,7 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 2048
 
 typedef enum TokenType {
   KEYWORD,
