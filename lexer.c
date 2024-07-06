@@ -8,7 +8,8 @@
 const char *keywords[] = {
   "and", "array", "begin", "div", "do",
   "else", "end", "function", "goto", "if", "label", "not", "of", "or",
-  "procedure", "program", "read", "then", "type", "var", "while", "write"
+  "procedure", "program", "read", "readln", "then", "type", "var", "while", 
+  "write", "writeln" 
 };
 int sizeKeywords = sizeof(keywords) / sizeof(keywords[0]);
 

@@ -34,7 +34,8 @@ typedef struct Node {
 const char *keywords[] = {
   "and", "array", "begin", "div", "do",
   "else", "end", "function", "goto", "if", "label", "not", "of", "or",
-  "procedure", "program", "read", "then", "type", "var", "while", "write"
+  "procedure", "program", "read", "readln", "then", "type", "var", "while", 
+  "write", "writeln" 
 };
 int sizeKeywords = sizeof(keywords) / sizeof(keywords[0]);
 
@@ -269,9 +270,16 @@ typedef enum ErrorType {
   INVALID_TYPE,
   INVALID_STATEMENT,
   INVALID_FACTOR,
+  UNDECLARED_SYMBOL,
   INVALID_END
 } ErrorType;
 
+typedef struct SymbolNode {
+  char name[BUFFER_SIZE];
+  struct SymbolNode *next;
+} SymbolNode;
+
+SymbolNode *symbolTable = NULL;
 Node *currentTok;
 
 // Handles a error based on it's error type
@@ -303,6 +311,10 @@ void handleError(TokenType expectedType, char *expectedLexeme,
       fprintf(stderr, "Error: expected valid factor but found \"%s\" at line %d\n",
               currentTok->tok->lexeme, currentTok->tok->line);
       break;
+    case UNDECLARED_SYMBOL:
+      fprintf(stderr, "Error: undeclared symbol \"%s\" at line %d\n",
+              currentTok->tok->lexeme, currentTok->tok->line);
+      break;
     case INVALID_END:
       fprintf(stderr, "Error: unexpected token after end of file \"%s\"",
               currentTok->tok->lexeme);
@@ -321,6 +333,24 @@ void nextToken() {
   if (currentTok != NULL) {
     currentTok = currentTok->next;
   }
+}
+
+// Adds symbol to symbol table
+void addSymbol(char* name) {
+  SymbolNode *newNode = (SymbolNode*)malloc(sizeof(SymbolNode));
+  strcpy(newNode->name, name);
+  newNode->next = symbolTable;
+  symbolTable = newNode;
+}
+
+// Checks if symbol exists in the table
+int symbolExists(char* name) {
+  SymbolNode* current = symbolTable;
+  while (current != NULL) {
+    if (strcmp(current->name, name) == 0) return 1;
+    current = current->next;
+  }
+  return 0;
 }
 
 // Checks if current token type is the expected type
@@ -370,7 +400,8 @@ void program();
 void block();
 void labelDeclaration();
 void varDeclaration();
-void identifierList();
+void identifierList(int isDeclaration);
+void identifier(int isDeclaration);
 void type();
 void subroutines();
 void procedure();
@@ -394,10 +425,10 @@ void factor();
 
 void program() {
   matchLexeme(KEYWORD, "program");
-  matchToken(IDENTIFIER);
+  identifier(1);
   if (checkLexeme(DELIMITER, "(")) {
     matchLexeme(DELIMITER, "(");
-    identifierList();
+    identifierList(0);
     matchLexeme(DELIMITER, ")");    
   }
   matchLexeme(DELIMITER, ";");
@@ -425,24 +456,31 @@ void labelDeclaration() {
 
 void varDeclaration() {
   matchLexeme(KEYWORD, "var");
-  identifierList();
+  identifierList(1);
   matchLexeme(DELIMITER, ":");
   type();
   matchLexeme(DELIMITER, ";");
   while (checkToken(IDENTIFIER)) {
-    identifierList();
+    identifierList(1);
     matchLexeme(DELIMITER, ":");
     type();
     matchLexeme(DELIMITER, ";");
   }
 }
 
-void identifierList() {
-  matchToken(IDENTIFIER);
+void identifierList(int isDeclaration) {
+  identifier(isDeclaration);
   while (checkLexeme(DELIMITER, ",")) {
     matchLexeme(DELIMITER, ",");
-    matchToken(IDENTIFIER);
+    identifier(isDeclaration);
   }
+}
+
+void identifier(int isDeclaration) {
+  if (isDeclaration) addSymbol(currentTok->tok->lexeme);
+  else if (!symbolExists(currentTok->tok->lexeme))
+    handleError(IDENTIFIER, currentTok->tok->lexeme, UNDECLARED_SYMBOL);
+  matchToken(IDENTIFIER);
 }
 
 void type() {
@@ -451,9 +489,9 @@ void type() {
   }
 
   if (checkLexeme(IDENTIFIER, "integer") ||
-      checkLexeme(IDENTIFIER, "real") == 0 ||
+      checkLexeme(IDENTIFIER, "real") ||
       checkLexeme(IDENTIFIER, "boolean")) {
-    matchToken(IDENTIFIER);
+    identifier(0);
   } else {
     handleError(IDENTIFIER, "", INVALID_TYPE);
   }
@@ -470,8 +508,8 @@ void subroutines() {
 
 void procedure() {
   matchLexeme(KEYWORD, "procedure");
-  matchToken(IDENTIFIER);
-  if (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER))
+  identifier(1);
+  if (checkLexeme(DELIMITER, "("))
     params();
   matchLexeme(DELIMITER, ";");
   block();
@@ -479,24 +517,29 @@ void procedure() {
 
 void function() {
   matchLexeme(KEYWORD, "function");
-  matchToken(IDENTIFIER);
-    if (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER))
+  identifier(1);
+  if (checkLexeme(DELIMITER, "("))
     params();
+  matchLexeme(DELIMITER, ":");
+  identifier(0);
   matchLexeme(DELIMITER, ";");
   block();  
 }
 
 void params() {
+  matchLexeme(DELIMITER, "(");
   if (checkLexeme(KEYWORD, "var")) matchLexeme(KEYWORD, "var");
-  identifierList();
+  identifierList(1);
   matchLexeme(DELIMITER, ":");
-  matchToken(IDENTIFIER);
-  while (checkLexeme(KEYWORD, "var") || checkToken(IDENTIFIER)) {
+  identifier(0);
+  while (checkLexeme(DELIMITER, ";")) {
+    matchLexeme(DELIMITER, ";");
     if (checkLexeme(KEYWORD, "var")) matchLexeme(KEYWORD, "var");
-    identifierList();
+    identifierList(1);
     matchLexeme(DELIMITER, ":");
-    matchToken(IDENTIFIER);
+    identifier(0);
   }
+  matchLexeme(DELIMITER, ")");
 }
 
 void statementList() {
@@ -522,7 +565,9 @@ void statement() {
   else if (checkLexeme(KEYWORD, "if")) ifStatement();
   else if (checkLexeme(KEYWORD, "while")) whileStatement();
   else if (checkLexeme(KEYWORD, "write")) writeStatement();
+  else if (checkLexeme(KEYWORD, "writeln")) writeStatement();
   else if (checkLexeme(KEYWORD, "read")) readStatement();
+  else if (checkLexeme(KEYWORD, "readln")) readStatement();
   else if (checkLexeme(KEYWORD, "begin")) statementList();
   else if (checkLexeme(KEYWORD, "goto")) deviation();
   else if (checkLexeme(KEYWORD, "end")) return; 
@@ -532,13 +577,13 @@ void statement() {
 }
 
 void assignment() {
-  matchToken(IDENTIFIER);
+  identifier(0);
   matchLexeme(COMPOUND_OPERATOR, ":=");
   expression();
 } 
 
 void subroutineCall() {
-  matchToken(IDENTIFIER);
+  identifier(0);
   if (checkLexeme(DELIMITER, "(")) {
     matchLexeme(DELIMITER, "(");
     expressionList();
@@ -570,16 +615,16 @@ void whileStatement() {
 }
 
 void writeStatement() {
-  matchLexeme(KEYWORD, "write");
+  matchToken(KEYWORD);
   matchLexeme(DELIMITER, "(");
   expressionList();
   matchLexeme(DELIMITER, ")");
 }
 
 void readStatement() {
-  matchLexeme(KEYWORD, "read");
+  matchToken(KEYWORD);
   matchLexeme(DELIMITER, "(");
-  identifierList();
+  identifierList(0);
   matchLexeme(DELIMITER, ")");
 }
 
@@ -643,7 +688,7 @@ void term() {
 void factor() {
   if (checkToken(IDENTIFIER)) {
     if (lookaheadLexeme(DELIMITER, "(")) subroutineCall();
-    else matchToken(IDENTIFIER);
+    else identifier(0);
   } else if (checkToken(NUMBER)) {
     matchToken(NUMBER);
   } else if (checkLexeme(DELIMITER, "(")) {
@@ -657,9 +702,22 @@ void factor() {
   }
 }
 
+// Adds all pre-declared symbols to symbol table
+// (input, output, integer, real, boolean, true, false)
+void addPreDeclaredSymbols() {
+  addSymbol("input");
+  addSymbol("output");
+  addSymbol("integer");
+  addSymbol("real");
+  addSymbol("boolean");
+  addSymbol("true");
+  addSymbol("false");
+}
+
 // Main parser function
 void parser(Node *tokenList) {
   currentTok = tokenList->next;
+  addPreDeclaredSymbols();
   program();
 
   if (currentTok->tok->type == END_OF_FILE) {
