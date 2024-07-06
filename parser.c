@@ -45,7 +45,7 @@ void handleError(TokenType expectedType, char *expectedLexeme,
               currentTok->tok->lexeme, currentTok->tok->line);
       break;
     case INVALID_END:
-      fprintf(stderr, "Error: unexpected token after end \"%s\"",
+      fprintf(stderr, "Error: unexpected token after end of file \"%s\"",
               currentTok->tok->lexeme);
       break;
     default:
@@ -53,7 +53,7 @@ void handleError(TokenType expectedType, char *expectedLexeme,
       break;
   }
 
-  printf("Rejeita\n");
+  printf("Rejeito\n");
   exit(1);
 }
 
@@ -403,12 +403,13 @@ void parser(Node *tokenList) {
   currentTok = tokenList->next;
   program();
 
-  if (currentTok == NULL) {
+  if (currentTok->tok->type == END_OF_FILE) {
     printf("Aceito\n");
   } else {
-    printf("Rejeito\n");
-    exit(1);
+    handleError(END_OF_FILE, currentTok->tok->lexeme, INVALID_END);
   }
+
+  return;
 }
 
 // syntax:

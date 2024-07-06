@@ -184,9 +184,15 @@ Node *lexer(FILE *sourceFile) {
     }
 
     // create and store the new token
-    Token *newToken = createToken(type, buffer, line, column);
-    pushList(tokenList, newToken);
+    if (type != COMMENTS) {
+      Token *newToken = createToken(type, buffer, line, column);
+      pushList(tokenList, newToken);
+    }
   }
+
+  // add the eof token.
+  Token *newToken = createToken(END_OF_FILE, "end of file", line, column);
+  pushList(tokenList, newToken);
 
   return tokenList;
 }
@@ -214,6 +220,7 @@ void printTokensCount(Node *list) {
       case DELIMITER: delims++; break;
       case COMMENTS: comments++; break;
       case UNKNOWN: unknowns++; break;
+      case END_OF_FILE: break;
     }
     aux = aux->next;
   }

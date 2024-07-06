@@ -11,7 +11,8 @@ typedef enum TokenType {
   COMPOUND_OPERATOR,
   DELIMITER,
   COMMENTS,
-  UNKNOWN
+  UNKNOWN,
+  END_OF_FILE
 } TokenType;
 
 typedef struct Token {
