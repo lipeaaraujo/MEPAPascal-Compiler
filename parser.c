@@ -1,23 +1,8 @@
 #include "header/parser.h"
-
+#include "header/generator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef enum ErrorType {
-  UNEXPECTED_TYPE,
-  UNEXPECTED_LEXEME,
-  INVALID_TYPE,
-  INVALID_STATEMENT,
-  INVALID_FACTOR,
-  UNDECLARED_SYMBOL,
-  INVALID_END
-} ErrorType;
-
-typedef struct SymbolNode {
-  char name[BUFFER_SIZE];
-  struct SymbolNode *next;
-} SymbolNode;
 
 SymbolNode *symbolTable = NULL;
 Node *currentTok;
@@ -458,13 +443,11 @@ void addPreDeclaredSymbols() {
 void parser(Node *tokenList) {
   currentTok = tokenList->next;
   addPreDeclaredSymbols();
+  initCodeGenerator();
   program();
 
-  if (currentTok->tok->type == END_OF_FILE) {
-    printf("Aceito\n");
-  } else {
+  if (currentTok->tok->type != END_OF_FILE)
     handleError(END_OF_FILE, currentTok->tok->lexeme, INVALID_END);
-  }
 
   return;
 }

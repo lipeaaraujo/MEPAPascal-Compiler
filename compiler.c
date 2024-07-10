@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
   printTokenList(tokenList);
   // printTokensCount(tokenList);
   parser(tokenList);
+  printCode();  
 
   // close the file
   fclose(sourceFile);
