@@ -114,7 +114,7 @@ TokenType processDigit(FILE *src, char *buffer, char c, int *column) {
     buffer[i++] = c;
     c = fgetc(src);
     (*column)++;
-  } while (isdigit(c) || (c == '.' && isdigit(c == '.')));
+  } while (isdigit(c) || (c == '.' && isdigit(fpeek(src))));
   ungetc(c, src);
   (*column)--;
   buffer[i] = '\0';

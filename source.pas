@@ -22,7 +22,7 @@ begin
 end;
 
 begin
-  x := 10.;
+  x := 10;
   y := 20;
   z := 15.5;
   flag := false;

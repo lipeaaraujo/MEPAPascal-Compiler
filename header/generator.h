@@ -1,7 +1,7 @@
 #ifndef GENERATOR_H
 #define GENERATOR_H
 
-#include "common.h";
+#include "common.h"
 
 typedef struct CodeNode {
   char instruction[BUFFER_SIZE];
